@@ -1,0 +1,249 @@
+#include <Adafruit_MAX31865.h>
+
+// Use software SPI: CS, DI, DO, CLK
+Adafruit_MAX31865 max = Adafruit_MAX31865(A1, 11, 12, 13);
+// use hardware SPI, just pass in the CS pin
+//Adafruit_MAX31865 max = Adafruit_MAX31865(10);
+
+//////////////////////////////////
+
+//for the oled display
+#include <SPI.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SH110X.h>
+#define i2c_Address 0x3c
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+#define OLED_RESET -1   //   QT-PY / XIAO
+Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+///////////////////////////////
+
+#define relay A0
+// The value of the Rref resistor. Use 430.0 for PT100 and 4300.0 for PT1000
+#define RREF 430.0
+// The 'nominal' 0-degrees-C resistance of the sensor
+// 100.0 for PT100, 1000.0 for PT1000
+#define RNOMINAL 100.0
+// Keypad
+// Include the Keypad library
+#include <Keypad.h>
+int num;
+// Constants for row and column sizes
+const byte ROWS = 4;
+const byte COLS = 4;
+
+// Array to represent keys on keypad
+char hexaKeys[ROWS][COLS] = {
+  {'D', '-', '0', '*'},
+  {'C', '9', '8', '7'},
+  {'B', '6', '5', '4'},
+  {'A', '3', '2', '1'}
+  //D = enter, A = input, * = clear, # = -
+};
+
+// Connections to Arduino
+byte colPins[COLS] = {2, 3, 4, 5};
+byte rowPins[ROWS] = {6, 7, 8, 9};
+
+// Create keypad object
+Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
+////////////////
+
+void setup() {
+Serial.begin(115200);
+
+
+
+delay(250); // wait for the OLED to power up
+display.begin(i2c_Address, true); // Address 0x3C default
+//display.setContrast (0); // to reduce the brightness of display
+display.print("Adafruit MAX31865 PT100 Sensor Test!");
+display.display();
+//Serial.println("Adafruit MAX31865 PT100 Sensor Test!");
+// Clear the buffer.
+display.clearDisplay();
+
+
+pinMode(relay,OUTPUT);
+//digitalWrite(relay,LOW);
+//..
+Serial.println("Adafruit MAX31865 PT100 Sensor Test!");
+
+max.begin(MAX31865_3WIRE); // set to 2WIRE or 4WIRE as necessary
+}
+
+
+void loop() {
+
+display.setTextSize(0.7);
+display.setTextColor(SH110X_WHITE);
+display.setCursor(0, 0);
+
+uint16_t rtd = max.readRTD();
+
+//....
+Serial.print("RTD value: "); Serial.println(rtd);
+display.print("RTD value"); display.println(rtd);
+display.display();
+display.clearDisplay();
+
+
+float ratio = rtd;
+ratio /= 32768;
+//
+Serial.print("Ratio = "); Serial.println(ratio,8);
+display.print("Ratio = "); display.println(ratio, 8);
+display.display();
+display.clearDisplay();
+//
+Serial.print("Resistance = "); Serial.println(RREF*ratio,8);
+display.print("Resistance = "); display.println(RREF*ratio, 8);
+////////
+display.display();
+///////
+display.clearDisplay();
+//
+Serial.print("Temperature = "); Serial.println(max.temperature(RNOMINAL, RREF));
+display.print("Temperature = "); display.println(max.temperature(RNOMINAL, RREF));
+display.display();
+display.clearDisplay();
+
+
+///// keypad
+String val;
+
+// Get key value if pressed
+char customKey = customKeypad.getKey();
+
+if (customKey == 'A') {
+    //....
+    Serial.println("Please enter");
+    display.println("Please Enter");
+    display.display();
+    //////////
+    display.clearDisplay();
+    while (customKey != 'D') {
+      customKey = customKeypad.getKey();
+      if (customKey != NO_KEY & customKey != 'D' & customKey != '*' ) {
+        //.....
+        Serial.print(customKey);
+        display.print(customKey);
+        display.display();
+        display.clearDisplay();
+
+        val += customKey;
+      }
+      if (customKey == '*'){
+        val = "";
+        //...
+        Serial.println("");
+        //...
+        Serial.println("cleard");
+        display.print("");  display.println("cleared");
+        display.display();
+        display.clearDisplay();
+        break;
+      }
+    }
+    //....
+    Serial.println("");
+    display.println("");
+    display.display();
+    display.clearDisplay();
+    num = val.toInt();
+   
+}
+
+//// Relay
+float temp = max.temperature(RNOMINAL, RREF);
+//....
+Serial.println(num);
+display.println(num);
+display.display();
+//////////////////////////////////////////
+display.clearDisplay();
+
+if (temp > num)
+{
+    digitalWrite(relay,HIGH);
+    //...
+    Serial.println("high");
+    display.println("high");
+    display.display();
+    display.clearDisplay();
+    
+}
+if(temp < num)
+{
+    digitalWrite(relay,LOW);
+    //...
+    Serial.println("Low");
+    display.println("low");
+    display.display();
+    display.clearDisplay();
+    
+}
+
+////
+
+// Check and print any faults
+uint8_t fault = max.readFault();
+if (fault) {
+//
+Serial.print("Fault 0x"); Serial.println(fault, HEX);
+display.print("Fault 0x");  display.println(fault, HEX);
+display.display();
+display.clearDisplay();
+if (fault & MAX31865_FAULT_HIGHTHRESH) {
+//
+Serial.println("RTD High Threshold");
+display.println("RTD High Threshold");
+display.display();
+display.clearDisplay();
+}
+if (fault & MAX31865_FAULT_LOWTHRESH) {
+//
+Serial.println("RTD Low Threshold");
+display.println("RTD Low Threshold");
+display.display();
+display.clearDisplay();
+}
+if (fault & MAX31865_FAULT_REFINLOW) {
+//
+Serial.println("REFIN- > 0.85 x Bias");
+display.println("RTDIN- < 0.85 x Bias");
+display.display();
+display.clearDisplay();
+}
+if (fault & MAX31865_FAULT_REFINHIGH) {
+//
+Serial.println("REFIN- < 0.85 x Bias - FORCE- open");
+display.println("RTDIN- < 0.85 x Bias - FORCE- open");
+display.display();
+display.clearDisplay();
+}
+if (fault & MAX31865_FAULT_RTDINLOW) {
+//...
+Serial.println("RTDIN- < 0.85 x Bias - FORCE- open");
+display.println("RTDIN- < 0.85 x Bias - FORCE- open");
+display.display();
+display.clearDisplay();
+}
+if (fault & MAX31865_FAULT_OVUV) {
+//....
+Serial.println("Under/Over voltage");
+display.println("Under/Over voltage");
+display.display();
+display.clearDisplay();
+}
+max.clearFault();
+}
+//...
+Serial.println();
+display.println();
+display.display();
+display.clearDisplay();
+//delay(1000);
+}
